@@ -84,6 +84,44 @@ class apiKeyManagement(DB_Managements):
     def delete(self,email):
         query="""delete from {table_name} where email='{email}'""".format(table_name=self.table_name,email=email)
         self.insertQuery(query)
+    def prolong_expiredDate(self,days,key=None,email=None):
+        if key is None and email is None:
+            raise Exception("No inputs are detected")
+        else:
+            expired = datetime.datetime.now() + datetime.timedelta(days=days)
+            expired = expired.strftime('%Y-%m-%d %H:%M:%S')
+            if key is None and email is not None:
+                query="""update {table_name} set expired = '{expired}' where email='{email}'""".format(table_name=self.table_name,expired=expired,email=email)
+            elif key is not None and email is None:
+                query="""update {table_name} set expired = '{expired}' where key='{key}'""".format(table_name=self.table_name,expired=expired,key=key)
+            else:
+                query="""update {table_name} set expired = '{expired}' where key='{key}' and email='{email}'""".format(table_name=self.table_name,expired=expired,key=key, email=email)
+            self.insertQuery(query)
+
+class Logs(DB_Managements):
+    def __init__(self):
+        self.table_name = 'logs'
+        super().__init__()
+        self.cursor()
+        if not tableExists(self.table_name): self.createTable()
+
+    def createTable(self):
+        query = """create table {table_name} (id integer, key text, datetime text ,ip text,status text ,result text)""".format(
+            table_name=self.table_name)
+        self.ddl_statement(query)
+    def insert(self,key,ip,status,result):
+        max_id=max_idx(self.table_name)
+        query="""insert into {table_name} (id,key,datetime,ip,status,result) values({id},'{key}','{datetime}','{ip}','{status}','{result}')""".format(
+            table_name=self.table_name,id=max_id+1,datetime=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),key=key,ip=ip,status=status,result=result
+        )
+        self.ddl_statement(query)
+    def selectQuery(self):
+        query="""select * from {}""".format(self.table_name)
+
+        list_result = []
+        for i in self.select_statement(query):
+            list_result.append(list(i))
+        return list_result
 
 
 def key_generator():

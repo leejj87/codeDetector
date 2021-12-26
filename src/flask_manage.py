@@ -4,7 +4,7 @@ from flask import Flask, render_template,redirect
 from .__init__ import DIR_TEMPLATES
 from .detector import ln_detector
 import datetime
-from .key_maker import key_generator,apiKeyManagement
+from .key_maker import key_generator,apiKeyManagement,Logs
 from guesslang import Guess
 guess=Guess()
 template_dir = DIR_TEMPLATES
@@ -19,11 +19,7 @@ def register():
     if request.method == 'GET':
         return render_template("register.html")
     else:
-        #userid = request.form.get('userid')
         email = request.form.get('email')
-        #password = request.form.get('password')
-        #password_2 = request.form.get('re_password')
-        #print(userid,email,password,password_2)
         if not (email):
             return "입력되지 않은 정보가 있습니다"
         else:
@@ -42,16 +38,39 @@ def register():
 
 @app.route("/code_detector", methods=['POST'])
 def code_detector():
-    start=datetime.datetime.now()
-    data = request.get_json()
-    code=data.get('code')
-    key=data.get('key')
-    if key is None:return "Error! Key required"
-    instance_key=apiKeyManagement()
-    if instance_key.isapiKeyValid(key):
-        result=ln_detector(guess,code)
-        return result
-    return 'invalid Key.\nPlease Contact to jlee@mark87.com with your email and key'
+    try:
+        ip=request.remote_addr
+        data = request.get_json()
+        code=data.get('code')
+        key=data.get('key')
+        if key is None:return "Error! Key required"
+        instance_key=apiKeyManagement()
+        instance_log=Logs()
+        if instance_key.isapiKeyValid(key):
+            result=ln_detector(guess,code)
+            instance_key.close()
+            instance_log.insert(key,ip,'SUCCESS',result)
+            instance_log.close()
+            return result
+        instance_key.close()
+        instance_log.insert(key,ip,'FAIL','INVALID_KEY')
+        instance_log.close()
+        return 'invalid Key.\nPlease Contact to jlee@mark87.com with your email and key'
+    except Exception as err:
+        instance_log=Logs()
+        instance_log.insert(key,ip,'ERROR',str(err))
+        instance_log.close()
+        return "ERROR-{}".format(str(err))
+
+@app.route("/logs", methods=['GET'])
+def log():
+    #naverID = request.args.get('naverID')
+    #content_number = request.args.get('article')
+    instance_log=Logs()
+    list_logs = instance_log.selectQuery()
+    list_logs = list(map(lambda x: "<p>" + '\t'.join(list(map(lambda y: str(y), x))) + "</p>", list_logs))
+    instance_log.close()
+    return ''.join(list_logs)
 
 if __name__ == '__main__':
     app.run()
